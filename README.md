@@ -50,12 +50,15 @@ Usage of ./go-mmproxy:
     	Path to a file that contains allowed subnets of the proxy servers
   -l string
     	Adress the proxy listens on (default "0.0.0.0:8443")
+  -listeners int
+    	Number of listener sockets that will be opened for the listen address (default 1)
   -mark int
     	The mark that will be set on outbound packets
   -v int
     	0 - no logging of individual connections
     	1 - log errors occuring in individual connections
     	2 - log all state changes of individual connections
+
 
 ```
 
