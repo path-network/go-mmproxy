@@ -28,10 +28,10 @@ var allowedSubnets []*net.IPNet
 
 func init() {
 	flag.StringVar(&listenAddr, "l", "0.0.0.0:8443", "Adress the proxy listens on")
-	flag.StringVar(&targetAddr4, "4", "0.0.0.0:443", "Address to which IPv4 TCP traffic will be forwarded to")
-	flag.StringVar(&targetAddr6, "6", "[::]:443", "Address to which IPv6 TCP traffic will be forwarded to")
-	flag.IntVar(&mark, "mark", 123, "The mark that will be set on outbound packets")
-	flag.StringVar(&allowedSubnetsPath, "allowed-subnets", "", "Path to a file that contains subnets of the proxy servers")
+	flag.StringVar(&targetAddr4, "4", "127.0.0.1:443", "Address to which IPv4 TCP traffic will be forwarded to")
+	flag.StringVar(&targetAddr6, "6", "[::1]:443", "Address to which IPv6 TCP traffic will be forwarded to")
+	flag.IntVar(&mark, "mark", 0, "The mark that will be set on outbound packets")
+	flag.StringVar(&allowedSubnetsPath, "allowed-subnets", "", "Path to a file that contains allowed subnets of the proxy servers")
 }
 
 func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, []byte, error) {
@@ -172,10 +172,12 @@ func dialUpstreamControl(sport int) func(string, string, syscall.RawConn) error 
 				syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, ipBindAddressNoPort, 1)
 			}
 
-			syscallErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, mark)
-			if syscallErr != nil {
-				syscallErr = fmt.Errorf("setsockopt(SOL_SOCK, SO_MARK, %d): %s", mark, syscallErr.Error())
-				return
+			if mark != 0 {
+				syscallErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, mark)
+				if syscallErr != nil {
+					syscallErr = fmt.Errorf("setsockopt(SOL_SOCK, SO_MARK, %d): %s", mark, syscallErr.Error())
+					return
+				}
 			}
 
 			if network == "tcp6" {
