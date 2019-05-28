@@ -42,7 +42,8 @@ func init() {
 	flag.IntVar(&verbose, "v", 0, `0 - no logging of individual connections
 1 - log errors occuring in individual connections
 2 - log all state changes of individual connections`)
-	flag.IntVar(&listeners, "listeners", 1, "Number of listener sockets that will be opened for the listen address")
+	flag.IntVar(&listeners, "listeners", 1,
+		"Number of listener sockets that will be opened for the listen address (Linux 3.9+)")
 }
 
 func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, []byte, error) {
