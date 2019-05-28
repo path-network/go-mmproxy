@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"flag"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"syscall"
 )
@@ -19,13 +21,17 @@ import (
 var listenAddr string
 var targetAddr4 string
 var targetAddr6 string
+var allowedSubnetsPath string
 var mark int
+
+var allowedSubnets []*net.IPNet
 
 func init() {
 	flag.StringVar(&listenAddr, "l", "0.0.0.0:8443", "Adress the proxy listens on")
 	flag.StringVar(&targetAddr4, "4", "0.0.0.0:443", "Address to which IPv4 TCP traffic will be forwarded to")
 	flag.StringVar(&targetAddr6, "6", "[::]:443", "Address to which IPv6 TCP traffic will be forwarded to")
 	flag.IntVar(&mark, "mark", 123, "The mark that will be set on outbound packets")
+	flag.StringVar(&allowedSubnetsPath, "allowed-subnets", "", "Path to a file that contains subnets of the proxy servers")
 }
 
 func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, []byte, error) {
@@ -193,8 +199,27 @@ func copyData(dst net.Conn, src net.Conn, ch chan<- error) {
 	ch <- err
 }
 
+func checkOriginAllowed(conn net.Conn) bool {
+	if len(allowedSubnets) == 0 {
+		return true
+	}
+
+	addr := conn.RemoteAddr().(*net.TCPAddr)
+	for _, ipNet := range allowedSubnets {
+		if ipNet.Contains(addr.IP) {
+			return true
+		}
+	}
+	return false
+}
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+
+	if !checkOriginAllowed(conn) {
+		log.Printf("Disallowed connection from %s", conn.RemoteAddr().String())
+		return
+	}
 
 	saddr, _, restBytes, err := readRemoteAddr(conn)
 	if err != nil {
@@ -248,8 +273,34 @@ func handleConnection(conn net.Conn) {
 	}
 }
 
+func loadAllowedSubnets() error {
+	file, err := os.Open(allowedSubnetsPath)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		_, ipNet, err := net.ParseCIDR(scanner.Text())
+		if err != nil {
+			return err
+		}
+		allowedSubnets = append(allowedSubnets, ipNet)
+	}
+
+	return nil
+}
+
 func main() {
 	flag.Parse()
+
+	if allowedSubnetsPath != "" {
+		if err := loadAllowedSubnets(); err != nil {
+			log.Fatalf("Failed to load allowed subnets file: %s", err.Error())
+		}
+	}
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
