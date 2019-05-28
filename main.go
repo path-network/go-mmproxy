@@ -16,6 +16,8 @@ import (
 	"os"
 	"strings"
 	"syscall"
+
+	"go.uber.org/zap"
 )
 
 var listenAddr string
@@ -23,15 +25,21 @@ var targetAddr4 string
 var targetAddr6 string
 var allowedSubnetsPath string
 var mark int
+var verbose int
 
 var allowedSubnets []*net.IPNet
+var logger *zap.Logger
 
 func init() {
 	flag.StringVar(&listenAddr, "l", "0.0.0.0:8443", "Adress the proxy listens on")
 	flag.StringVar(&targetAddr4, "4", "127.0.0.1:443", "Address to which IPv4 TCP traffic will be forwarded to")
 	flag.StringVar(&targetAddr6, "6", "[::1]:443", "Address to which IPv6 TCP traffic will be forwarded to")
 	flag.IntVar(&mark, "mark", 0, "The mark that will be set on outbound packets")
-	flag.StringVar(&allowedSubnetsPath, "allowed-subnets", "", "Path to a file that contains allowed subnets of the proxy servers")
+	flag.StringVar(&allowedSubnetsPath, "allowed-subnets", "",
+		"Path to a file that contains allowed subnets of the proxy servers")
+	flag.IntVar(&verbose, "v", 0, `0 - no logging of individual connections
+1 - log errors occuring in individual connections
+2 - log all state changes of individual connections`)
 }
 
 func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, []byte, error) {
@@ -73,10 +81,14 @@ func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, [
 	if ctrlBuf[13] == 0x11 { // TCP over IPv4
 		srcIP := net.IPv4(ctrlBuf[16], ctrlBuf[17], ctrlBuf[18], ctrlBuf[19])
 		dstIP := net.IPv4(ctrlBuf[20], ctrlBuf[21], ctrlBuf[22], ctrlBuf[23])
-		return &net.TCPAddr{IP: srcIP, Port: int(sport)}, &net.TCPAddr{IP: dstIP, Port: int(dport)}, ctrlBuf[16+dataLen:], nil
+		return &net.TCPAddr{IP: srcIP, Port: int(sport)},
+			&net.TCPAddr{IP: dstIP, Port: int(dport)},
+			ctrlBuf[16+dataLen:], nil
 	}
 
-	return &net.TCPAddr{IP: ctrlBuf[16:32], Port: int(sport)}, &net.TCPAddr{IP: ctrlBuf[32:48], Port: int(dport)}, ctrlBuf[16+dataLen:], nil
+	return &net.TCPAddr{IP: ctrlBuf[16:32], Port: int(sport)},
+		&net.TCPAddr{IP: ctrlBuf[32:48], Port: int(dport)},
+		ctrlBuf[16+dataLen:], nil
 }
 
 func readRemoteAddrPROXYv1(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, []byte, error) {
@@ -113,7 +125,9 @@ func readRemoteAddrPROXYv1(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, [
 		if dstIP == nil {
 			return nil, nil, nil, fmt.Errorf("failed to parse destination IP address %s", dst)
 		}
-		return &net.TCPAddr{IP: srcIP, Port: sport}, &net.TCPAddr{IP: dstIP, Port: dport}, ctrlBuf[idx+2:], nil
+		return &net.TCPAddr{IP: srcIP, Port: sport},
+			&net.TCPAddr{IP: dstIP, Port: dport},
+			ctrlBuf[idx+2:], nil
 	}
 
 	return nil, nil, nil, fmt.Errorf("did not find \\r\\n in first data segment")
@@ -126,7 +140,8 @@ func readRemoteAddr(conn net.Conn) (net.Addr, net.Addr, []byte, error) {
 		return nil, nil, nil, fmt.Errorf("failed to read header: %s", err.Error())
 	}
 
-	if n >= 16 && bytes.Equal(buf[:13], []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}) {
+	if n >= 16 && bytes.Equal(buf[:12],
+		[]byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}) {
 		saddr, daddr, rest, err := readRemoteAddrPROXYv2(conn, buf[:n])
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to parse PROXY v2 header: %s", err.Error())
@@ -145,7 +160,7 @@ func readRemoteAddr(conn net.Conn) (net.Addr, net.Addr, []byte, error) {
 	return nil, nil, nil, fmt.Errorf("PROXY header missing")
 }
 
-func dialUpstreamControl(sport int) func(string, string, syscall.RawConn) error {
+func dialUpstreamControl(sport int, connLog *zap.Logger) func(string, string, syscall.RawConn) error {
 	return func(network, address string, c syscall.RawConn) error {
 		var syscallErr error
 		err := c.Control(func(fd uintptr) {
@@ -169,7 +184,10 @@ func dialUpstreamControl(sport int) func(string, string, syscall.RawConn) error 
 
 			if sport == 0 {
 				ipBindAddressNoPort := 24
-				syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, ipBindAddressNoPort, 1)
+				err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, ipBindAddressNoPort, 1)
+				if err != nil && verbose > 1 {
+					connLog.Debug("Failed to set IP_BIND_ADDRESS_NO_PORT", zap.Error(err))
+				}
 			}
 
 			if mark != 0 {
@@ -217,15 +235,21 @@ func checkOriginAllowed(conn net.Conn) bool {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+	connLog := logger.With(zap.String("remoteAddr", conn.RemoteAddr().String()),
+		zap.String("localAddr", conn.LocalAddr().String()))
 
 	if !checkOriginAllowed(conn) {
-		log.Printf("Disallowed connection from %s", conn.RemoteAddr().String())
+		connLog.Debug("connection origin not in allowed subnets", zap.Bool("dropConnection", true))
 		return
+	}
+
+	if verbose > 1 {
+		connLog.Debug("new connection")
 	}
 
 	saddr, _, restBytes, err := readRemoteAddr(conn)
 	if err != nil {
-		log.Printf("Failed to parse PROXY data from %s: %s", conn.RemoteAddr().String(), err.Error())
+		connLog.Debug("failed to parse PROXY header", zap.Error(err), zap.Bool("dropConnection", true))
 		return
 	}
 
@@ -234,31 +258,40 @@ func handleConnection(conn net.Conn) {
 		targetAddr = targetAddr4
 	}
 
-	dialer := net.Dialer{LocalAddr: saddr, Control: dialUpstreamControl(saddr.(*net.TCPAddr).Port)}
+	connLog = connLog.With(zap.String("clientAddr", saddr.String()), zap.String("targetAddr", targetAddr))
+	if verbose > 1 {
+		connLog.Debug("successfuly parsed PROXY header")
+	}
+
+	dialer := net.Dialer{LocalAddr: saddr, Control: dialUpstreamControl(saddr.(*net.TCPAddr).Port, connLog)}
 	upstreamConn, err := dialer.Dial("tcp", targetAddr)
 	if err != nil {
-		log.Printf("Failed to establish upstream connection %s -> %s (PROXY %s -> %s): %s",
-			conn.RemoteAddr().String(), conn.LocalAddr().String(), saddr.String(), targetAddr, err.Error())
+		connLog.Debug("failed to establish upstream connection", zap.Error(err), zap.Bool("dropConnection", true))
 		return
 	}
 
+	defer upstreamConn.Close()
+	if verbose > 1 {
+		connLog.Debug("successfuly established upstream connection")
+	}
+
 	if err := conn.(*net.TCPConn).SetNoDelay(true); err != nil {
-		log.Printf("Failed to set nodelay on upstream connection %s -> %s (PROXY %s -> %s): %s",
-			conn.RemoteAddr().String(), conn.LocalAddr().String(), saddr.String(), targetAddr, err.Error())
+		connLog.Debug("failed to set nodelay on downstream connection", zap.Error(err), zap.Bool("dropConnection", true))
+	} else if verbose > 1 {
+		connLog.Debug("successfuly set NoDelay on downstream connection")
 	}
 
 	if err := upstreamConn.(*net.TCPConn).SetNoDelay(true); err != nil {
-		log.Printf("Failed to set nodelay on upstream connection %s -> %s (PROXY %s -> %s): %s",
-			conn.RemoteAddr().String(), conn.LocalAddr().String(), saddr.String(), targetAddr, err.Error())
+		connLog.Debug("failed to set nodelay on upstream connection", zap.Error(err), zap.Bool("dropConnection", true))
+	} else if verbose > 1 {
+		connLog.Debug("successfuly set NoDelay on upstream connection")
 	}
-
-	defer upstreamConn.Close()
 
 	for len(restBytes) > 0 {
 		n, err := conn.Write(restBytes)
 		if err != nil {
-			log.Printf("Failed to write data to upstream connection %s -> %s (PROXY %s -> %s): %s",
-				conn.RemoteAddr().String(), conn.LocalAddr().String(), saddr.String(), targetAddr, err.Error())
+			connLog.Debug("failed to write data to upstream connection",
+				zap.Error(err), zap.Bool("dropConnection", true))
 			return
 		}
 		restBytes = restBytes[n:]
@@ -270,8 +303,9 @@ func handleConnection(conn net.Conn) {
 
 	err = <-outErr
 	if err != nil {
-		log.Printf("Connection %s -> %s (PROXY %s -> %s): %s",
-			conn.RemoteAddr().String(), conn.LocalAddr().String(), saddr.String(), targetAddr, err.Error())
+		connLog.Debug("connection broken", zap.Error(err), zap.Bool("dropConnection", true))
+	} else if verbose > 1 {
+		connLog.Debug("connection closing")
 	}
 }
 
@@ -290,29 +324,48 @@ func loadAllowedSubnets() error {
 			return err
 		}
 		allowedSubnets = append(allowedSubnets, ipNet)
+		logger.Info("allowed subnet", zap.String("subnet", ipNet.String()))
 	}
 
 	return nil
 }
 
+func initLogger() error {
+	logConfig := zap.NewProductionConfig()
+	if verbose > 0 {
+		logConfig.Level.SetLevel(zap.DebugLevel)
+	}
+
+	l, err := logConfig.Build()
+	if err == nil {
+		logger = l
+	}
+	return err
+}
+
 func main() {
 	flag.Parse()
 
+	if err := initLogger(); err != nil {
+		log.Fatalf("Failed to initialize logging: %s", err.Error())
+	}
+	defer logger.Sync()
+
 	if allowedSubnetsPath != "" {
 		if err := loadAllowedSubnets(); err != nil {
-			log.Fatalf("Failed to load allowed subnets file: %s", err.Error())
+			logger.Fatal("failed to load allowed subnets file", zap.String("path", allowedSubnetsPath), zap.Error(err))
 		}
 	}
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Fatalf("Failed to bind to %s: %s\n", listenAddr, err.Error())
+		logger.Fatal("failed to bind listener", zap.String("listenAddr", listenAddr), zap.Error(err))
 	}
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Fatalf("Failed to accept new connection: %s\n", err.Error())
+			logger.Fatal("failed to accept new connection", zap.Error(err))
 		}
 
 		go handleConnection(conn)

@@ -52,6 +52,11 @@ Usage of ./go-mmproxy:
     	Adress the proxy listens on (default "0.0.0.0:8443")
   -mark int
     	The mark that will be set on outbound packets
+  -v int
+    	0 - no logging of individual connections
+    	1 - log errors occuring in individual connections
+    	2 - log all state changes of individual connections
+
 ```
 
 Example invocation:
