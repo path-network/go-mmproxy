@@ -292,7 +292,7 @@ func handleConnection(conn net.Conn, listenLog *zap.Logger) {
 	}
 
 	for len(restBytes) > 0 {
-		n, err := conn.Write(restBytes)
+		n, err := upstreamConn.Write(restBytes)
 		if err != nil {
 			connLog.Debug("failed to write data to upstream connection",
 				zap.Error(err), zap.Bool("dropConnection", true))
