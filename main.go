@@ -51,12 +51,12 @@ func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, [
 		return nil, nil, nil, fmt.Errorf("unknown protocol version %d", ctrlBuf[12]>>4)
 	}
 
-	if ctrlBuf[12]&0xFF > 1 {
-		return nil, nil, nil, fmt.Errorf("unknown command %d", ctrlBuf[12]&0xFF)
+	if ctrlBuf[12]&0xF > 1 {
+		return nil, nil, nil, fmt.Errorf("unknown command %d", ctrlBuf[12]&0xF)
 	}
 
-	if ctrlBuf[12]&0xFF == 1 && ctrlBuf[13] != 0x11 && ctrlBuf[13] != 0x21 {
-		return nil, nil, nil, fmt.Errorf("invalid family/protocol %d/%d", ctrlBuf[13]>>4, ctrlBuf[13]&0xFF)
+	if ctrlBuf[12]&0xF == 1 && ctrlBuf[13] != 0x11 && ctrlBuf[13] != 0x21 {
+		return nil, nil, nil, fmt.Errorf("invalid family/protocol %d/%d", ctrlBuf[13]>>4, ctrlBuf[13]&0xF)
 	}
 
 	var dataLen uint16
@@ -65,7 +65,11 @@ func readRemoteAddrPROXYv2(conn net.Conn, ctrlBuf []byte) (net.Addr, net.Addr, [
 		return nil, nil, nil, fmt.Errorf("failed to decode address data length: %s", err.Error())
 	}
 
-	if ctrlBuf[12]&0xFF == 1 { // LOCAL
+	if len(ctrlBuf) < 16+int(dataLen) {
+		return nil, nil, nil, fmt.Errorf("incomplete PROXY header")
+	}
+
+	if ctrlBuf[12]&0xF == 0 { // LOCAL
 		return conn.RemoteAddr(), conn.LocalAddr(), ctrlBuf[16+dataLen:], nil
 	}
 
