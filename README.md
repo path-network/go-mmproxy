@@ -2,7 +2,7 @@
 
 This is a Go reimplementation of [mmproxy](https://github.com/cloudflare/mmproxy), created to improve on mmproxy's runtime stability while providing potentially greater performance in terms of connection and packet throughput.
 
-`go-mmproxy` is a standalone application that unwraps HAProxy's [PROXY protocol](http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt) (also adopted by other projects such as NGINX) so that the TCP connection to the end server comes from client's - instead of proxy server's - IP address and port number.
+`go-mmproxy` is a standalone application that unwraps HAProxy's [PROXY protocol](http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt) (also adopted by other projects such as NGINX) so that the network connection to the end server comes from client's - instead of proxy server's - IP address and port number.
 Because they share basic mechanisms, [Cloudflare's blogpost on mmproxy](https://blog.cloudflare.com/mmproxy-creative-way-of-preserving-client-ips-in-spectrum/) serves as a great write-up on how `go-mmproxy` works under the hood.
 
 ## Building
@@ -38,22 +38,33 @@ ip -6 route add local ::/0 dev lo table 123
 If `--mark` option is given to `go-mmproxy`, all packets routed to the loopback interface will have the mark set.
 This can be used for setting up more advanced routing rules with iptables, for example when you need traffic from loopback to be routed outside of the machine.
 
+#### Routing UDP packets
+
+Because UDP is connectionless, if a socket is bound to `0.0.0.0` the kernel stack will search for an interface in order to send a reply to the spoofed source address - instead of just using the interface it received the original packet from.
+The found interface will most likely _not_ be the loopback interface, which will avoid the rules specified above.
+The simplest way to fix this is to bind the end server's listeners to `127.0.0.1` (or `::1`).
+This is also generally recommended in order to avoid receiving non-proxied connections.
+
 ### Starting go-mmproxy
 
 ```
 Usage of ./go-mmproxy:
   -4 string
-    	Address to which IPv4 TCP traffic will be forwarded to (default "127.0.0.1:443")
+    	Address to which IPv4 traffic will be forwarded to (default "127.0.0.1:443")
   -6 string
-    	Address to which IPv6 TCP traffic will be forwarded to (default "[::1]:443")
+    	Address to which IPv6 traffic will be forwarded to (default "[::1]:443")
   -allowed-subnets string
     	Path to a file that contains allowed subnets of the proxy servers
+  -close-after int
+    	Number of seconds after which UDP socket will be cleaned up (default 60)
   -l string
     	Adress the proxy listens on (default "0.0.0.0:8443")
   -listeners int
     	Number of listener sockets that will be opened for the listen address (Linux 3.9+) (default 1)
   -mark int
     	The mark that will be set on outbound packets
+  -p string
+    	Protocol that will be proxied: tcp, udp (default "tcp")
   -v int
     	0 - no logging of individual connections
     	1 - log errors occuring in individual connections
