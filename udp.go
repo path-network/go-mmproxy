@@ -31,7 +31,11 @@ func udpCloseAfterInactivity(conn *udpConnection, socketClosures chan<- string) 
 		}
 	}
 	conn.upstream.Close()
-	socketClosures <- conn.clientAddr.String()
+	if conn.clientAddr != nil {
+		socketClosures <- conn.clientAddr.String()
+	} else {
+		socketClosures <- ""
+	}
 }
 
 func udpCopyFromUpstream(downstream net.PacketConn, conn *udpConnection) {
@@ -83,7 +87,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 	if saddr != nil {
 		connKey = saddr.String()
 	}
-	if conn := connMap[saddr.String()]; conn != nil {
+	if conn := connMap[connKey]; conn != nil {
 		atomic.AddInt64(conn.lastActivity, 1)
 		return conn, nil
 	}
@@ -113,8 +117,10 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 	udpConn := &udpConnection{upstream: conn.(*net.UDPConn),
 		logger:         logger,
 		lastActivity:   new(int64),
-		clientAddr:     saddr.(*net.UDPAddr),
 		downstreamAddr: downstreamAddr.(*net.UDPAddr)}
+	if saddr != nil {
+		udpConn.clientAddr = saddr.(*net.UDPAddr)
+	}
 
 	go udpCopyFromUpstream(downstream, udpConn)
 	go udpCloseAfterInactivity(udpConn, socketClosures)
