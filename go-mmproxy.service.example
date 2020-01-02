@@ -1,0 +1,17 @@
+[Unit]
+Description=go-mmproxy
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPost=ip rule add from 127.0.0.1/8 iif lo table 123
+ExecStartPost=ip route add local 0.0.0.0/0 dev lo table 123
+ExecStart=/usr/bin/go-mmproxy -4 127.0.0.1:1000 -6 "[::1]:1000" -allowed-subnets /usr/share/path-prefixes.txt -l 0.0.0.0:1234
+ExecStopPost=ip rule del from 127.0.0.1/8 iif lo table 123
+ExecStopPost=ip route del local 0.0.0.0/0 dev lo table 123
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target
+
