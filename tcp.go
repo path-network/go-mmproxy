@@ -57,7 +57,7 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 
 	logger = logger.With(zap.String("clientAddr", saddr.String()), zap.String("targetAddr", targetAddr))
 	if Opts.Verbose > 1 {
-		logger.Debug("successfuly parsed PROXY header")
+		logger.Debug("successfully parsed PROXY header")
 	}
 
 	dialer := net.Dialer{LocalAddr: saddr}
@@ -72,19 +72,19 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 
 	defer upstreamConn.Close()
 	if Opts.Verbose > 1 {
-		logger.Debug("successfuly established upstream connection")
+		logger.Debug("successfully established upstream connection")
 	}
 
 	if err := conn.(*net.TCPConn).SetNoDelay(true); err != nil {
 		logger.Debug("failed to set nodelay on downstream connection", zap.Error(err), zap.Bool("dropConnection", true))
 	} else if Opts.Verbose > 1 {
-		logger.Debug("successfuly set NoDelay on downstream connection")
+		logger.Debug("successfully set NoDelay on downstream connection")
 	}
 
 	if err := upstreamConn.(*net.TCPConn).SetNoDelay(true); err != nil {
 		logger.Debug("failed to set nodelay on upstream connection", zap.Error(err), zap.Bool("dropConnection", true))
 	} else if Opts.Verbose > 1 {
-		logger.Debug("successfuly set NoDelay on upstream connection")
+		logger.Debug("successfully set NoDelay on upstream connection")
 	}
 
 	for len(restBytes) > 0 {
