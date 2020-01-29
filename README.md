@@ -58,7 +58,7 @@ Usage of ./go-mmproxy:
   -close-after int
     	Number of seconds after which UDP socket will be cleaned up (default 60)
   -l string
-    	Adress the proxy listens on (default "0.0.0.0:8443")
+    	Address the proxy listens on (default "0.0.0.0:8443")
   -listeners int
     	Number of listener sockets that will be opened for the listen address (Linux 3.9+) (default 1)
   -mark int
@@ -67,7 +67,7 @@ Usage of ./go-mmproxy:
     	Protocol that will be proxied: tcp, udp (default "tcp")
   -v int
     	0 - no logging of individual connections
-    	1 - log errors occuring in individual connections
+    	1 - log errors occurring in individual connections
     	2 - log all state changes of individual connections
 ```
 

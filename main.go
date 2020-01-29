@@ -35,12 +35,12 @@ var Opts options
 
 func init() {
 	flag.StringVar(&Opts.Protocol, "p", "tcp", "Protocol that will be proxied: tcp, udp")
-	flag.StringVar(&Opts.ListenAddr, "l", "0.0.0.0:8443", "Adress the proxy listens on")
+	flag.StringVar(&Opts.ListenAddr, "l", "0.0.0.0:8443", "Address the proxy listens on")
 	flag.StringVar(&Opts.TargetAddr4, "4", "127.0.0.1:443", "Address to which IPv4 traffic will be forwarded to")
 	flag.StringVar(&Opts.TargetAddr6, "6", "[::1]:443", "Address to which IPv6 traffic will be forwarded to")
 	flag.IntVar(&Opts.Mark, "mark", 0, "The mark that will be set on outbound packets")
 	flag.IntVar(&Opts.Verbose, "v", 0, `0 - no logging of individual connections
-1 - log errors occuring in individual connections
+1 - log errors occurring in individual connections
 2 - log all state changes of individual connections`)
 	flag.StringVar(&Opts.allowedSubnetsPath, "allowed-subnets", "",
 		"Path to a file that contains allowed subnets of the proxy servers")
