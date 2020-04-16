@@ -55,7 +55,11 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 		targetAddr = Opts.TargetAddr4
 	}
 
-	logger = logger.With(zap.String("clientAddr", saddr.String()), zap.String("targetAddr", targetAddr))
+	clientAddr := "UNKNOWN"
+	if saddr != nil {
+		clientAddr = saddr.String()
+	}
+	logger = logger.With(zap.String("clientAddr", clientAddr), zap.String("targetAddr", targetAddr))
 	if Opts.Verbose > 1 {
 		logger.Debug("successfully parsed PROXY header")
 	}
