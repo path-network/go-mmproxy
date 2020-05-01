@@ -69,7 +69,7 @@ func DialUpstreamControl(sport int) func(string, string, syscall.RawConn) error 
 			}
 
 			if network == "tcp6" || network == "udp6" {
-				syscallErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IPV6_V6ONLY, 0)
+				syscallErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0)
 				if syscallErr != nil {
 					syscallErr = fmt.Errorf("setsockopt(IPPROTO_IP, IPV6_ONLY, 0): %s", syscallErr.Error())
 					return
