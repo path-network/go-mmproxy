@@ -20,6 +20,7 @@ See [Go's Getting Started](https://golang.org/doc/install) if your package manag
 
 - on the same server as the proxy target, as the communication happens over the loopback interface;
 - as root or with `CAP_NET_ADMIN` capability to be able to set `IP_TRANSPARENT` socket opt.
+- `sudo setcap 'cap_net_admin=+ep' go-mmproxy`
 
 ## Running
 
@@ -75,6 +76,12 @@ Example invocation:
 
 ```shell
 sudo ./go-mmproxy -l 0.0.0.0:25577 -4 127.0.0.1:25578 -6 [::1]:25578 --allowed-subnets ./path-prefixes.txt
+```
+
+
+```shell
+sudo setcap 'cap_net_admin=+ep' go-mmproxy
+./go-mmproxy -l 0.0.0.0:25565 -4 127.0.0.1:25560 -6 [::1]:25560 -mark 123 -raw -rxrate 102400 -txrate 102400
 ```
 
 ## Benchmark

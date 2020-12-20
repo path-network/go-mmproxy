@@ -29,6 +29,11 @@ type options struct {
 	Logger             *zap.Logger
 	udpCloseAfter      int
 	UDPCloseAfter      time.Duration
+
+	RawProxy           bool // use directly, for per-client bandwidth limiter
+	// bytes per sec, <= 0 disable
+	RatelimitProxyRx   int // per-client upload bandwidth limit
+	RatelimitProxyTx   int // per-client download bandwidth limit
 }
 
 var Opts options
@@ -47,6 +52,9 @@ func init() {
 	flag.IntVar(&Opts.Listeners, "listeners", 1,
 		"Number of listener sockets that will be opened for the listen address (Linux 3.9+)")
 	flag.IntVar(&Opts.udpCloseAfter, "close-after", 60, "Number of seconds after which UDP socket will be cleaned up")
+	flag.BoolVar(&Opts.RawProxy, "raw", false, "use directly as a per-client bandwidth limiter")
+	flag.IntVar(&Opts.RatelimitProxyRx, "rxrate", -1, "bytes per sec, per-client upload bandwidth limit")
+	flag.IntVar(&Opts.RatelimitProxyTx, "txrate", -1, "bytes per sec, per-client download bandwidth limit")
 }
 
 func listen(listenerNum int, errors chan<- error) {
