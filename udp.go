@@ -93,6 +93,9 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 	}
 
 	targetAddr := Opts.TargetAddr6
+	if targetAddr == "" {
+		targetAddr = Opts.TargetAddr4
+	}
 	if AddrVersion(downstreamAddr) == 4 {
 		targetAddr = Opts.TargetAddr4
 	}
