@@ -51,7 +51,11 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 	}
 
 	targetAddr := Opts.TargetAddr6
-	if AddrVersion(saddr) == 4 {
+	if saddr == nil {
+		if AddrVersion(conn.RemoteAddr()) == 4 {
+			targetAddr = Opts.TargetAddr4
+		}
+	} else if AddrVersion(saddr) == 4 {
 		targetAddr = Opts.TargetAddr4
 	}
 
