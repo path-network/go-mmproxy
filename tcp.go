@@ -112,14 +112,18 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger, getAddr AddrFn) {
 		logger.Debug("failed to get source address", zap.Error(err), zap.Bool("dropConnection", true))
 		return
 	}
+	targetAddr := Opts.TargetAddr6
+	if saddr == nil {
+		if AddrVersion(conn.RemoteAddr()) == 4 {
+			targetAddr = Opts.TargetAddr4
+		}
+	} else if AddrVersion(saddr) == 4 {
+		targetAddr = Opts.TargetAddr4
+	}
 
 	clientAddr := "UNKNOWN"
 	if saddr != nil {
 		clientAddr = saddr.String()
-	}
-	targetAddr := Opts.TargetAddr6
-	if AddrVersion(saddr) == 4 {
-		targetAddr = Opts.TargetAddr4
 	}
 	logger = logger.With(zap.String("clientAddr", clientAddr), zap.String("targetAddr", targetAddr))
 	if Opts.Verbose > 1 {
