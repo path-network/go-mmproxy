@@ -29,6 +29,7 @@ type options struct {
 	Logger             *zap.Logger
 	udpCloseAfter      int
 	UDPCloseAfter      time.Duration
+	DynamicDestination bool
 }
 
 var Opts options
@@ -47,6 +48,7 @@ func init() {
 	flag.IntVar(&Opts.Listeners, "listeners", 1,
 		"Number of listener sockets that will be opened for the listen address (Linux 3.9+)")
 	flag.IntVar(&Opts.udpCloseAfter, "close-after", 60, "Number of seconds after which UDP socket will be cleaned up")
+	flag.BoolVar(&Opts.DynamicDestination, "dynamic-destination", false, "Traffic will be forwarded to the destination specified in the PROXY protocol header")
 }
 
 func listen(listenerNum int, errors chan<- error) {

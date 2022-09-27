@@ -57,6 +57,8 @@ Usage of ./go-mmproxy:
     	Path to a file that contains allowed subnets of the proxy servers
   -close-after int
     	Number of seconds after which UDP socket will be cleaned up (default 60)
+  -dynamic-destination
+        Traffic will be forwarded to the destination specified in the PROXY protocol header
   -l string
     	Address the proxy listens on (default "0.0.0.0:8443")
   -listeners int
