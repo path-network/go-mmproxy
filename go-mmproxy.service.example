@@ -5,17 +5,24 @@ After=network.target
 [Service]
 Type=simple
 LimitNOFILE=65535
-ExecStartPost=/sbin/ip rule add from 127.0.0.1/8 iif lo table 123
-ExecStartPost=/sbin/ip route add local 0.0.0.0/0 dev lo table 123
-ExecStartPost=/sbin/ip -6 rule add from ::1/128 iif lo table 123
-ExecStartPost=/sbin/ip -6 route add local ::/0 dev lo table 123
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_ADMIN
+ExecStartPost=+/sbin/ip rule add from 127.0.0.1/8 iif lo table 123
+ExecStartPost=+/sbin/ip route add local 0.0.0.0/0 dev lo table 123
+ExecStartPost=+/sbin/ip -6 rule add from ::1/128 iif lo table 123
+ExecStartPost=+/sbin/ip -6 route add local ::/0 dev lo table 123
 ExecStart=/usr/bin/go-mmproxy -4 127.0.0.1:1000 -6 "[::1]:1000" -allowed-subnets /usr/share/path-prefixes.txt -l 0.0.0.0:1234
-ExecStopPost=/sbin/ip rule del from 127.0.0.1/8 iif lo table 123
-ExecStopPost=/sbin/ip route del local 0.0.0.0/0 dev lo table 123
-ExecStopPost=/sbin/ip -6 rule del from ::1/128 iif lo table 123
-ExecStopPost=/sbin/ip -6 route del local ::/0 dev lo table 123
+ExecStopPost=+/sbin/ip rule del from 127.0.0.1/8 iif lo table 123
+ExecStopPost=+/sbin/ip route del local 0.0.0.0/0 dev lo table 123
+ExecStopPost=+/sbin/ip -6 rule del from ::1/128 iif lo table 123
+ExecStopPost=+/sbin/ip -6 route del local ::/0 dev lo table 123
 Restart=on-failure
 RestartSec=10s
+User=nobody
+Group=nogroup
+Environment=USER=nobody HOME=/tmp
+ProtectSystem=true
+PrivateTmp=true
+WorkingDirectory=/tmp
 
 [Install]
 WantedBy=multi-user.target
