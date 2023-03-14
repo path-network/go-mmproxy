@@ -8,7 +8,7 @@ Because they share basic mechanisms, [Cloudflare's blogpost on mmproxy](https://
 ## Building
 
 ```shell
-go get github.com/path-network/go-mmproxy
+go install github.com/path-network/go-mmproxy@latest
 ```
 
 You'll need at least `go 1.11` to build the `go-mmproxy` binary.
