@@ -80,7 +80,7 @@ sudo ./go-mmproxy -l 0.0.0.0:25577 -4 127.0.0.1:25578 -6 [::1]:25578 --allowed-s
 
 
 ```shell
-sudo setcap 'cap_net_admin=+ep' go-mmproxy
+sudo setcap 'cap_net_admin=+ep cap_net_bind_service=+ep' go-mmproxy
 ./go-mmproxy -l 0.0.0.0:25565 -4 127.0.0.1:25560 -6 [::1]:25560 -mark 123 -raw -rxrate 102400 -txrate 102400
 ```
 
