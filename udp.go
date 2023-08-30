@@ -6,12 +6,12 @@ package main
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"net"
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type udpConnection struct {
@@ -19,7 +19,7 @@ type udpConnection struct {
 	clientAddr     *net.UDPAddr
 	downstreamAddr *net.UDPAddr
 	upstream       *net.UDPConn
-	logger         *zap.Logger
+	logger         *slog.Logger
 }
 
 func udpCloseAfterInactivity(conn *udpConnection, socketClosures chan<- string) {
@@ -41,7 +41,7 @@ func udpCloseAfterInactivity(conn *udpConnection, socketClosures chan<- string) 
 func udpCopyFromUpstream(downstream net.PacketConn, conn *udpConnection) {
 	rawConn, err := conn.upstream.SyscallConn()
 	if err != nil {
-		conn.logger.Error("failed to retrieve raw connection from upstream socket", zap.Error(err))
+		conn.logger.Error("failed to retrieve raw connection from upstream socket", "error", err)
 		return
 	}
 
@@ -53,7 +53,7 @@ func udpCopyFromUpstream(downstream net.PacketConn, conn *udpConnection) {
 
 		for {
 			n, _, serr := syscall.Recvfrom(int(fd), buf, syscall.MSG_DONTWAIT)
-			if serr == syscall.EWOULDBLOCK {
+			if errors.Is(serr, syscall.EWOULDBLOCK) {
 				return false
 			}
 			if serr != nil {
@@ -77,11 +77,11 @@ func udpCopyFromUpstream(downstream net.PacketConn, conn *udpConnection) {
 		err = syscallErr
 	}
 	if err != nil {
-		conn.logger.Debug("failed to read from upstream", zap.Error(err))
+		conn.logger.Debug("failed to read from upstream", "error", err)
 	}
 }
 
-func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Addr, logger *zap.Logger,
+func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Addr, logger *slog.Logger,
 	connMap map[string]*udpConnection, socketClosures chan<- string) (*udpConnection, error) {
 	connKey := ""
 	if saddr != nil {
@@ -97,10 +97,10 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 		targetAddr = Opts.TargetAddr4
 	}
 
-	logger = logger.With(zap.String("downstreamAddr", downstreamAddr.String()), zap.String("targetAddr", targetAddr))
+	logger = logger.With(slog.String("downstreamAddr", downstreamAddr.String()), slog.String("targetAddr", targetAddr))
 	dialer := net.Dialer{LocalAddr: saddr}
 	if saddr != nil {
-		logger = logger.With(zap.String("clientAddr", saddr.String()))
+		logger = logger.With(slog.String("clientAddr", saddr.String()))
 		dialer.Control = DialUpstreamControl(saddr.(*net.UDPAddr).Port)
 	}
 
@@ -110,7 +110,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 
 	conn, err := dialer.Dial("udp", targetAddr)
 	if err != nil {
-		logger.Debug("failed to connect to upstream", zap.Error(err))
+		logger.Debug("failed to connect to upstream", "error", err)
 		return nil, err
 	}
 
@@ -129,11 +129,11 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 	return udpConn, nil
 }
 
-func UDPListen(listenConfig *net.ListenConfig, logger *zap.Logger, errors chan<- error) {
+func UDPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
 	ctx := context.Background()
 	ln, err := listenConfig.ListenPacket(ctx, "udp", Opts.ListenAddr)
 	if err != nil {
-		logger.Error("failed to bind listener", zap.Error(err))
+		logger.Error("failed to bind listener", "error", err)
 		errors <- err
 		return
 	}
@@ -149,18 +149,18 @@ func UDPListen(listenConfig *net.ListenConfig, logger *zap.Logger, errors chan<-
 	for {
 		n, remoteAddr, err := ln.ReadFrom(buffer)
 		if err != nil {
-			logger.Error("failed to read from socket", zap.Error(err))
+			logger.Error("failed to read from socket", "error", err)
 			continue
 		}
 
 		if !CheckOriginAllowed(remoteAddr.(*net.UDPAddr).IP) {
-			logger.Debug("packet origin not in allowed subnets", zap.String("remoteAddr", remoteAddr.String()))
+			logger.Debug("packet origin not in allowed subnets", slog.String("remoteAddr", remoteAddr.String()))
 			continue
 		}
 
 		saddr, _, restBytes, err := PROXYReadRemoteAddr(buffer[:n], UDP)
 		if err != nil {
-			logger.Debug("failed to parse PROXY header", zap.Error(err), zap.String("remoteAddr", remoteAddr.String()))
+			logger.Debug("failed to parse PROXY header", "error", err, slog.String("remoteAddr", remoteAddr.String()))
 			continue
 		}
 
@@ -184,7 +184,7 @@ func UDPListen(listenConfig *net.ListenConfig, logger *zap.Logger, errors chan<-
 
 		_, err = conn.upstream.Write(restBytes)
 		if err != nil {
-			conn.logger.Error("failed to write to upstream socket", zap.Error(err))
+			conn.logger.Error("failed to write to upstream socket", "error", err)
 		}
 	}
 }

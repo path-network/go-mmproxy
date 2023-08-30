@@ -7,9 +7,8 @@ package main
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
-
-	"go.uber.org/zap"
 )
 
 func tcpCopyData(dst net.Conn, src net.Conn, ch chan<- error) {
@@ -17,13 +16,13 @@ func tcpCopyData(dst net.Conn, src net.Conn, ch chan<- error) {
 	ch <- err
 }
 
-func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
+func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 	defer conn.Close()
-	logger = logger.With(zap.String("remoteAddr", conn.RemoteAddr().String()),
-		zap.String("localAddr", conn.LocalAddr().String()))
+	logger = logger.With(slog.String("remoteAddr", conn.RemoteAddr().String()),
+		slog.String("localAddr", conn.LocalAddr().String()))
 
 	if !CheckOriginAllowed(conn.RemoteAddr().(*net.TCPAddr).IP) {
-		logger.Debug("connection origin not in allowed subnets", zap.Bool("dropConnection", true))
+		logger.Debug("connection origin not in allowed subnets", slog.Bool("dropConnection", true))
 		return
 	}
 
@@ -40,13 +39,13 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 
 	n, err := conn.Read(buffer)
 	if err != nil {
-		logger.Debug("failed to read PROXY header", zap.Error(err), zap.Bool("dropConnection", true))
+		logger.Debug("failed to read PROXY header", "error", err, slog.Bool("dropConnection", true))
 		return
 	}
 
 	saddr, _, restBytes, err := PROXYReadRemoteAddr(buffer[:n], TCP)
 	if err != nil {
-		logger.Debug("failed to parse PROXY header", zap.Error(err), zap.Bool("dropConnection", true))
+		logger.Debug("failed to parse PROXY header", "error", err, slog.Bool("dropConnection", true))
 		return
 	}
 
@@ -63,7 +62,7 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 	if saddr != nil {
 		clientAddr = saddr.String()
 	}
-	logger = logger.With(zap.String("clientAddr", clientAddr), zap.String("targetAddr", targetAddr))
+	logger = logger.With(slog.String("clientAddr", clientAddr), slog.String("targetAddr", targetAddr))
 	if Opts.Verbose > 1 {
 		logger.Debug("successfully parsed PROXY header")
 	}
@@ -74,7 +73,7 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 	}
 	upstreamConn, err := dialer.Dial("tcp", targetAddr)
 	if err != nil {
-		logger.Debug("failed to establish upstream connection", zap.Error(err), zap.Bool("dropConnection", true))
+		logger.Debug("failed to establish upstream connection", "error", err, slog.Bool("dropConnection", true))
 		return
 	}
 
@@ -84,13 +83,13 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 	}
 
 	if err := conn.(*net.TCPConn).SetNoDelay(true); err != nil {
-		logger.Debug("failed to set nodelay on downstream connection", zap.Error(err), zap.Bool("dropConnection", true))
+		logger.Debug("failed to set nodelay on downstream connection", "error", err, slog.Bool("dropConnection", true))
 	} else if Opts.Verbose > 1 {
 		logger.Debug("successfully set NoDelay on downstream connection")
 	}
 
 	if err := upstreamConn.(*net.TCPConn).SetNoDelay(true); err != nil {
-		logger.Debug("failed to set nodelay on upstream connection", zap.Error(err), zap.Bool("dropConnection", true))
+		logger.Debug("failed to set nodelay on upstream connection", "error", err, slog.Bool("dropConnection", true))
 	} else if Opts.Verbose > 1 {
 		logger.Debug("successfully set NoDelay on upstream connection")
 	}
@@ -99,7 +98,7 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 		n, err := upstreamConn.Write(restBytes)
 		if err != nil {
 			logger.Debug("failed to write data to upstream connection",
-				zap.Error(err), zap.Bool("dropConnection", true))
+				"error", err, slog.Bool("dropConnection", true))
 			return
 		}
 		restBytes = restBytes[n:]
@@ -114,17 +113,17 @@ func tcpHandleConnection(conn net.Conn, logger *zap.Logger) {
 
 	err = <-outErr
 	if err != nil {
-		logger.Debug("connection broken", zap.Error(err), zap.Bool("dropConnection", true))
+		logger.Debug("connection broken", "error", err, slog.Bool("dropConnection", true))
 	} else if Opts.Verbose > 1 {
 		logger.Debug("connection closing")
 	}
 }
 
-func TCPListen(listenConfig *net.ListenConfig, logger *zap.Logger, errors chan<- error) {
+func TCPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
 	ctx := context.Background()
 	ln, err := listenConfig.Listen(ctx, "tcp", Opts.ListenAddr)
 	if err != nil {
-		logger.Error("failed to bind listener", zap.Error(err))
+		logger.Error("failed to bind listener", "error", err)
 		errors <- err
 		return
 	}
@@ -134,7 +133,7 @@ func TCPListen(listenConfig *net.ListenConfig, logger *zap.Logger, errors chan<-
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			logger.Error("failed to accept new connection", zap.Error(err))
+			logger.Error("failed to accept new connection", "error", err)
 			errors <- err
 			return
 		}
