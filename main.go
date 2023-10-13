@@ -7,13 +7,11 @@ package main
 import (
 	"bufio"
 	"flag"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"syscall"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type options struct {
@@ -26,7 +24,7 @@ type options struct {
 	allowedSubnetsPath string
 	AllowedSubnets     []*net.IPNet
 	Listeners          int
-	Logger             *zap.Logger
+	Logger             *slog.Logger
 	udpCloseAfter      int
 	UDPCloseAfter      time.Duration
 }
@@ -50,8 +48,8 @@ func init() {
 }
 
 func listen(listenerNum int, errors chan<- error) {
-	logger := Opts.Logger.With(zap.Int("listenerNum", listenerNum),
-		zap.String("protocol", Opts.Protocol), zap.String("listenAdr", Opts.ListenAddr))
+	logger := Opts.Logger.With(slog.Int("listenerNum", listenerNum),
+		slog.String("protocol", Opts.Protocol), slog.String("listenAdr", Opts.ListenAddr))
 
 	listenConfig := net.ListenConfig{}
 	if Opts.Listeners > 1 {
@@ -87,57 +85,49 @@ func loadAllowedSubnets() error {
 			return err
 		}
 		Opts.AllowedSubnets = append(Opts.AllowedSubnets, ipNet)
-		Opts.Logger.Info("allowed subnet", zap.String("subnet", ipNet.String()))
+		Opts.Logger.Info("allowed subnet", slog.String("subnet", ipNet.String()))
 	}
 
 	return nil
 }
 
-func initLogger() error {
-	logConfig := zap.NewProductionConfig()
-	if Opts.Verbose > 0 {
-		logConfig.Level.SetLevel(zap.DebugLevel)
-	}
-
-	l, err := logConfig.Build()
-	if err == nil {
-		Opts.Logger = l
-	}
-	return err
-}
-
 func main() {
 	flag.Parse()
-	if err := initLogger(); err != nil {
-		log.Fatalf("Failed to initialize logging: %s", err.Error())
+	lvl := slog.LevelInfo
+	if Opts.Verbose > 0 {
+		lvl = slog.LevelDebug
 	}
-	defer Opts.Logger.Sync()
+	Opts.Logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 
 	if Opts.allowedSubnetsPath != "" {
 		if err := loadAllowedSubnets(); err != nil {
-			Opts.Logger.Fatal("failed to load allowed subnets file",
-				zap.String("path", Opts.allowedSubnetsPath), zap.Error(err))
+			Opts.Logger.Error("failed to load allowed subnets file", "path", Opts.allowedSubnetsPath, "error", err)
 		}
 	}
 
 	if Opts.Protocol != "tcp" && Opts.Protocol != "udp" {
-		Opts.Logger.Fatal("--protocol has to be one of udp, tcp", zap.String("protocol", Opts.Protocol))
+		Opts.Logger.Error("--protocol has to be one of udp, tcp", slog.String("protocol", Opts.Protocol))
+		os.Exit(1)
 	}
 
 	if Opts.Mark < 0 {
-		Opts.Logger.Fatal("--mark has to be >= 0", zap.Int("mark", Opts.Mark))
+		Opts.Logger.Error("--mark has to be >= 0", slog.Int("mark", Opts.Mark))
+		os.Exit(1)
 	}
 
 	if Opts.Verbose < 0 {
-		Opts.Logger.Fatal("-v has to be >= 0", zap.Int("verbose", Opts.Verbose))
+		Opts.Logger.Error("-v has to be >= 0", slog.Int("verbose", Opts.Verbose))
+		os.Exit(1)
 	}
 
 	if Opts.Listeners < 1 {
-		Opts.Logger.Fatal("--listeners has to be >= 1")
+		Opts.Logger.Error("--listeners has to be >= 1")
+		os.Exit(1)
 	}
 
 	if Opts.udpCloseAfter < 0 {
-		Opts.Logger.Fatal("--close-after has to be >= 0", zap.Int("close-after", Opts.udpCloseAfter))
+		Opts.Logger.Error("--close-after has to be >= 0", slog.Int("close-after", Opts.udpCloseAfter))
+		os.Exit(1)
 	}
 	Opts.UDPCloseAfter = time.Duration(Opts.udpCloseAfter) * time.Second
 

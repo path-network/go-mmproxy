@@ -12,7 +12,7 @@ import (
 var buffers sync.Pool
 
 func init() {
-	buffers.New = func() interface{} { return make([]byte, math.MaxUint16) }
+	buffers.New = func() any { return make([]byte, math.MaxUint16) }
 }
 
 func GetBuffer() []byte {
@@ -20,5 +20,5 @@ func GetBuffer() []byte {
 }
 
 func PutBuffer(buf []byte) {
-	buffers.Put(buf)
+	buffers.Put(buf) // nolint:staticcheck
 }
