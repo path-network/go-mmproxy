@@ -11,7 +11,7 @@ Because they share basic mechanisms, [Cloudflare's blogpost on mmproxy](https://
 go install github.com/path-network/go-mmproxy@latest
 ```
 
-You'll need at least `go 1.11` to build the `go-mmproxy` binary.
+You'll need at least `go 1.21` to build the `go-mmproxy` binary.
 See [Go's Getting Started](https://golang.org/doc/install) if your package manager does not carry new enough version of golang.
 
 ## Requirements
