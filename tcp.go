@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/netip"
 )
 
 func tcpCopyData(dst net.Conn, src net.Conn, ch chan<- error) {
@@ -51,10 +52,10 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 
 	targetAddr := Opts.TargetAddr6
 	if saddr == nil {
-		if AddrVersion(conn.RemoteAddr()) == 4 {
+		if netip.MustParseAddr(conn.RemoteAddr().String()).Is4() {
 			targetAddr = Opts.TargetAddr4
 		}
-	} else if AddrVersion(saddr) == 4 {
+	} else if netip.MustParseAddr(saddr.String()).Is4() {
 		targetAddr = Opts.TargetAddr4
 	}
 
