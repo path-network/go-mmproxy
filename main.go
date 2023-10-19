@@ -9,6 +9,7 @@ import (
 	"flag"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"syscall"
 	"time"
@@ -122,6 +123,21 @@ func main() {
 
 	if Opts.Listeners < 1 {
 		Opts.Logger.Error("--listeners has to be >= 1")
+		os.Exit(1)
+	}
+
+	if _, err := netip.ParseAddr(Opts.ListenAddr); err != nil {
+		Opts.Logger.Error("listen address is malformed", "error", err)
+		os.Exit(1)
+	}
+
+	if _, err := netip.ParseAddr(Opts.TargetAddr4); err != nil {
+		Opts.Logger.Error("ipv4 target address is malformed", "error", err)
+		os.Exit(1)
+	}
+
+	if _, err := netip.ParseAddr(Opts.TargetAddr6); err != nil {
+		Opts.Logger.Error("ipv6 target address is malformed", "error", err)
 		os.Exit(1)
 	}
 
