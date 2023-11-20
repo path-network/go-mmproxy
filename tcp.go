@@ -52,10 +52,10 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 
 	targetAddr := Opts.TargetAddr6
 	if saddr == nil {
-		if netip.MustParseAddr(conn.RemoteAddr().String()).Is4() {
+		if netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr().Is4() {
 			targetAddr = Opts.TargetAddr4
 		}
-	} else if netip.MustParseAddr(saddr.String()).Is4() {
+	} else if netip.MustParseAddrPort(saddr.String()).Addr().Is4() {
 		targetAddr = Opts.TargetAddr4
 	}
 
