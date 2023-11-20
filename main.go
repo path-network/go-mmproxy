@@ -68,9 +68,9 @@ func listen(listenerNum int, errors chan<- error) {
 	}
 
 	if Opts.Protocol == "tcp" {
-		TCPListen(&listenConfig, logger, errors)
+		tcpListen(&listenConfig, logger, errors)
 	} else {
-		UDPListen(&listenConfig, logger, errors)
+		udpListen(&listenConfig, logger, errors)
 	}
 }
 

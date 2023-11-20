@@ -102,7 +102,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 	dialer := net.Dialer{LocalAddr: saddr}
 	if saddr != nil {
 		logger = logger.With(slog.String("clientAddr", saddr.String()))
-		dialer.Control = DialUpstreamControl(saddr.(*net.UDPAddr).Port)
+		dialer.Control = dialUpstreamControl(saddr.(*net.UDPAddr).Port)
 	}
 
 	if Opts.Verbose > 1 {
@@ -130,7 +130,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 	return udpConn, nil
 }
 
-func UDPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
+func udpListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
 	ctx := context.Background()
 	ln, err := listenConfig.ListenPacket(ctx, "udp", Opts.ListenAddr.String())
 	if err != nil {
@@ -154,12 +154,12 @@ func UDPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<
 			continue
 		}
 
-		if !CheckOriginAllowed(remoteAddr.(*net.UDPAddr).IP) {
+		if !checkOriginAllowed(remoteAddr.(*net.UDPAddr).IP) {
 			logger.Debug("packet origin not in allowed subnets", slog.String("remoteAddr", remoteAddr.String()))
 			continue
 		}
 
-		saddr, _, restBytes, err := PROXYReadRemoteAddr(buffer[:n], UDP)
+		saddr, _, restBytes, err := proxyReadRemoteAddr(buffer[:n], UDP)
 		if err != nil {
 			logger.Debug("failed to parse PROXY header", "error", err, slog.String("remoteAddr", remoteAddr.String()))
 			continue

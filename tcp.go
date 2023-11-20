@@ -22,7 +22,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 	logger = logger.With(slog.String("remoteAddr", conn.RemoteAddr().String()),
 		slog.String("localAddr", conn.LocalAddr().String()))
 
-	if !CheckOriginAllowed(conn.RemoteAddr().(*net.TCPAddr).IP) {
+	if !checkOriginAllowed(conn.RemoteAddr().(*net.TCPAddr).IP) {
 		logger.Debug("connection origin not in allowed subnets", slog.Bool("dropConnection", true))
 		return
 	}
@@ -44,7 +44,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 		return
 	}
 
-	saddr, _, restBytes, err := PROXYReadRemoteAddr(buffer[:n], TCP)
+	saddr, _, restBytes, err := proxyReadRemoteAddr(buffer[:n], TCP)
 	if err != nil {
 		logger.Debug("failed to parse PROXY header", "error", err, slog.Bool("dropConnection", true))
 		return
@@ -70,7 +70,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 
 	dialer := net.Dialer{LocalAddr: saddr}
 	if saddr != nil {
-		dialer.Control = DialUpstreamControl(saddr.(*net.TCPAddr).Port)
+		dialer.Control = dialUpstreamControl(saddr.(*net.TCPAddr).Port)
 	}
 	upstreamConn, err := dialer.Dial("tcp", targetAddr.String())
 	if err != nil {
@@ -120,7 +120,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 	}
 }
 
-func TCPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
+func tcpListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
 	ctx := context.Background()
 	ln, err := listenConfig.Listen(ctx, "tcp", Opts.ListenAddr.String())
 	if err != nil {
