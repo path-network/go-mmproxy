@@ -17,9 +17,12 @@ import (
 
 type options struct {
 	Protocol           string
-	ListenAddr         string
-	TargetAddr4        string
-	TargetAddr6        string
+	ListenAddrStr      string
+	TargetAddr4Str     string
+	TargetAddr6Str     string
+	ListenAddr         netip.AddrPort
+	TargetAddr4        netip.AddrPort
+	TargetAddr6        netip.AddrPort
 	Mark               int
 	Verbose            int
 	allowedSubnetsPath string
@@ -34,9 +37,9 @@ var Opts options
 
 func init() {
 	flag.StringVar(&Opts.Protocol, "p", "tcp", "Protocol that will be proxied: tcp, udp")
-	flag.StringVar(&Opts.ListenAddr, "l", "0.0.0.0:8443", "Address the proxy listens on")
-	flag.StringVar(&Opts.TargetAddr4, "4", "127.0.0.1:443", "Address to which IPv4 traffic will be forwarded to")
-	flag.StringVar(&Opts.TargetAddr6, "6", "[::1]:443", "Address to which IPv6 traffic will be forwarded to")
+	flag.StringVar(&Opts.ListenAddrStr, "l", "0.0.0.0:8443", "Address the proxy listens on")
+	flag.StringVar(&Opts.TargetAddr4Str, "4", "127.0.0.1:443", "Address to which IPv4 traffic will be forwarded to")
+	flag.StringVar(&Opts.TargetAddr6Str, "6", "[::1]:443", "Address to which IPv6 traffic will be forwarded to")
 	flag.IntVar(&Opts.Mark, "mark", 0, "The mark that will be set on outbound packets")
 	flag.IntVar(&Opts.Verbose, "v", 0, `0 - no logging of individual connections
 1 - log errors occurring in individual connections
@@ -50,7 +53,7 @@ func init() {
 
 func listen(listenerNum int, errors chan<- error) {
 	logger := Opts.Logger.With(slog.Int("listenerNum", listenerNum),
-		slog.String("protocol", Opts.Protocol), slog.String("listenAdr", Opts.ListenAddr))
+		slog.String("protocol", Opts.Protocol), slog.String("listenAdr", Opts.ListenAddr.String()))
 
 	listenConfig := net.ListenConfig{}
 	if Opts.Listeners > 1 {
@@ -126,18 +129,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	if _, err := netip.ParseAddr(Opts.ListenAddr); err != nil {
+	var err error
+	if Opts.ListenAddr, err = netip.ParseAddrPort(Opts.ListenAddrStr); err != nil {
 		Opts.Logger.Error("listen address is malformed", "error", err)
 		os.Exit(1)
 	}
 
-	if _, err := netip.ParseAddr(Opts.TargetAddr4); err != nil {
+	if Opts.TargetAddr4, err = netip.ParseAddrPort(Opts.TargetAddr4Str); err != nil {
 		Opts.Logger.Error("ipv4 target address is malformed", "error", err)
 		os.Exit(1)
 	}
+	if !Opts.TargetAddr4.Addr().Is4() {
+		Opts.Logger.Error("ipv4 target address is not IPv4")
+		os.Exit(1)
+	}
 
-	if _, err := netip.ParseAddr(Opts.TargetAddr6); err != nil {
+	if Opts.TargetAddr6, err = netip.ParseAddrPort(Opts.TargetAddr6Str); err != nil {
 		Opts.Logger.Error("ipv6 target address is malformed", "error", err)
+		os.Exit(1)
+	}
+	if !Opts.TargetAddr6.Addr().Is6() {
+		Opts.Logger.Error("ipv6 target address is not IPv6")
 		os.Exit(1)
 	}
 

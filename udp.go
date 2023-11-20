@@ -98,7 +98,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 		targetAddr = Opts.TargetAddr4
 	}
 
-	logger = logger.With(slog.String("downstreamAddr", downstreamAddr.String()), slog.String("targetAddr", targetAddr))
+	logger = logger.With(slog.String("downstreamAddr", downstreamAddr.String()), slog.String("targetAddr", targetAddr.String()))
 	dialer := net.Dialer{LocalAddr: saddr}
 	if saddr != nil {
 		logger = logger.With(slog.String("clientAddr", saddr.String()))
@@ -109,7 +109,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 		logger.Debug("new connection")
 	}
 
-	conn, err := dialer.Dial("udp", targetAddr)
+	conn, err := dialer.Dial("udp", targetAddr.String())
 	if err != nil {
 		logger.Debug("failed to connect to upstream", "error", err)
 		return nil, err
@@ -132,7 +132,7 @@ func udpGetSocketFromMap(downstream net.PacketConn, downstreamAddr, saddr net.Ad
 
 func UDPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
 	ctx := context.Background()
-	ln, err := listenConfig.ListenPacket(ctx, "udp", Opts.ListenAddr)
+	ln, err := listenConfig.ListenPacket(ctx, "udp", Opts.ListenAddr.String())
 	if err != nil {
 		logger.Error("failed to bind listener", "error", err)
 		errors <- err

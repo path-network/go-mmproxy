@@ -63,7 +63,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 	if saddr != nil {
 		clientAddr = saddr.String()
 	}
-	logger = logger.With(slog.String("clientAddr", clientAddr), slog.String("targetAddr", targetAddr))
+	logger = logger.With(slog.String("clientAddr", clientAddr), slog.String("targetAddr", targetAddr.String()))
 	if Opts.Verbose > 1 {
 		logger.Debug("successfully parsed PROXY header")
 	}
@@ -72,7 +72,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 	if saddr != nil {
 		dialer.Control = DialUpstreamControl(saddr.(*net.TCPAddr).Port)
 	}
-	upstreamConn, err := dialer.Dial("tcp", targetAddr)
+	upstreamConn, err := dialer.Dial("tcp", targetAddr.String())
 	if err != nil {
 		logger.Debug("failed to establish upstream connection", "error", err, slog.Bool("dropConnection", true))
 		return
@@ -122,7 +122,7 @@ func tcpHandleConnection(conn net.Conn, logger *slog.Logger) {
 
 func TCPListen(listenConfig *net.ListenConfig, logger *slog.Logger, errors chan<- error) {
 	ctx := context.Background()
-	ln, err := listenConfig.Listen(ctx, "tcp", Opts.ListenAddr)
+	ln, err := listenConfig.Listen(ctx, "tcp", Opts.ListenAddr.String())
 	if err != nil {
 		logger.Error("failed to bind listener", "error", err)
 		errors <- err
